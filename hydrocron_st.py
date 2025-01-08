@@ -132,13 +132,16 @@ def create_map(geojson_data, df, cycle_id, continent_id, collection_shortname):
 
 # Streamlit Interface
 st.title("Hydrocron Data Visualization")
-# Create columns for input fields
-col1, col2, col3 = st.columns([0.8,2,2])
 
-# User Inputs for Reach ID, Start Time, and End Time
-with col1: reach_id = st.text_input("Enter Reach ID", "56861000151")
-with col2: start_time = st.text_input("Enter Start Time (YYYY-MM-DDTHH:MM:SSZ)", "2022-07-01T00:00:00Z")
-with col3: end_time = st.text_input("Enter End Time (YYYY-MM-DDTHH:MM:SSZ)", "2024-12-05T00:00:00Z")
+with st.expander("$ \\large \\textrm {\color{#F94C10} Inputs} $", expanded=True, icon=":material/instant_mix:"):
+    rcol1, rcol2 = st.columns([1, 5])
+    with rcol1: reach_id = st.text_input(":blue[**River Reach ID**]", "56861000151")
+
+    # Create columns for input fields
+    col1, col2, col3 = st.columns([1, 0.05, 1])
+    # User Inputs for Reach ID, Start Time, and End Time
+    with col1: start_time = st.text_input(":blue[**Start Time (YYYY-MM-DDTHH:MM:SSZ)**]", "2022-07-01T00:00:00Z")
+    with col3: end_time = st.text_input(":blue[**End Time (YYYY-MM-DDTHH:MM:SSZ)**]", "2024-12-05T00:00:00Z")
 
 # Button to trigger data fetching and displaying
 if st.button("Run"):
