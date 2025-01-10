@@ -4,6 +4,7 @@ import pandas as pd
 from folium import IFrame
 from streamlit_folium import folium_static
 import streamlit as st
+from streamlit_js_eval import streamlit_js_eval
 
 # Set Streamlit layout to wide mode
 st.set_page_config(layout="wide", page_title="Hydrocron Data Download", page_icon=":material/cloud_download:") 
@@ -12,6 +13,7 @@ st.title("Hydrocron Data Viz and Download")
 image_url = 'https://cef.org.au/wp-content/uploads/2021/10/UoW-logo.png'
 st.logo(image_url, link="https://www.uow.edu.au/", size="large", icon_image=None)
 
+screen_width = streamlit_js_eval(js_expressions='screen.width', key = 'SCR')
 
 # Function to fetch and process data from API
 def fetch_data(reach_id, start_time, end_time):
@@ -139,9 +141,9 @@ def create_map(geojson_data, df, cycle_id, continent_id, collection_shortname):
 with st.expander("$ \\large \\textrm {\color{#F94C10} Inputs} $", expanded=True, icon=":material/instant_mix:"):
     
     st.markdown("")
-    downloadFields = '''$ \small Click \; on\;  the\; link \;get \; River \;Reach \;ID.  \;Requires \;ArcGIS \;Pro \;or \;QGIS \;or \;similar \;to \;open \;those \;files\; - $ 
-    [SWORD - SWOT River Database](https://shorturl.at/yZzbT)  
-    $ \small Following\; fields\; will\; be\; downloaded$    
+    downloadFields = '''Click  on  the link get :orange[River Reach ID].  Requires ArcGIS Pro or QGIS or similar to open those files.     
+    [SWORD - SWOT River Database](https://shorturl.at/yZzbT)   
+    Following fields will be downloaded   
       
     
     reach_id, time_str, wse, width, geometry, river_name, cycle_id, pass_id, continent_id, collection_shortname'''
@@ -173,7 +175,8 @@ if st.button("Run", icon=":material/settings:"):
 
         # Display Map with initial width
         map = create_map(geojson_data, df, cycle_id=cycle_id, continent_id=continent_id, collection_shortname=collection_shortname)
-        folium_static(map, width=1000)
+        
+        folium_static(map, width=screen_width)
 
     else:
         st.warning("Please enter all fields (Reach ID, Start Time, and End Time) to fetch data.")
