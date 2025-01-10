@@ -140,7 +140,7 @@ with st.expander("$ \\large \\textrm {\color{#F94C10} Inputs} $", expanded=True,
     with rcol1: reach_id = st.text_input(":blue[**River Reach ID**]", "56861000151")
 
     # Create columns for input fields
-    col1, col2, col3 = st.columns([1, 0.05, 1])
+    col1, col2, col3 = st.columns([1, 0.02, 1])
     # User Inputs for Reach ID, Start Time, and End Time
     with col1: start_time = st.text_input(":blue[**Start Time (YYYY-MM-DDTHH:MM:SSZ)**]", "2022-07-01T00:00:00Z", placeholder="test")
     with col3: end_time = st.text_input(":blue[**End Time (YYYY-MM-DDTHH:MM:SSZ)**]", "2024-12-05T00:00:00Z")
