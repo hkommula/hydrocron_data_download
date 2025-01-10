@@ -161,7 +161,7 @@ with st.expander("$ \\large \\textrm {\color{#F94C10} Inputs} $", expanded=True,
     with col3: end_time = st.text_input(":red[**End Time**]", "2024-12-05T00:00:00Z", help="YYYY-MM-DDTHH:MM:SSZ")
 
 # Button to trigger data fetching and displaying
-if st.button("Run", icon=":material/play_circle_outline:"):
+if st.button("Run", icon=":material/play_circle:"):
     if reach_id and start_time and end_time:
         
         # Fetch data using user inputs
