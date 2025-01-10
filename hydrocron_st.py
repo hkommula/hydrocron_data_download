@@ -6,7 +6,11 @@ from streamlit_folium import folium_static
 import streamlit as st
 
 # Set Streamlit layout to wide mode
-st.set_page_config(layout="wide", page_title="⛅ Hydrocron Data Download") 
+st.set_page_config(layout="wide", page_title="Hydrocron Data Download", page_icon=":material/cloud_download:") 
+# Streamlit Interface
+st.title("Hydrocron Data Viz and Download")
+image_url = 'https://cef.org.au/wp-content/uploads/2021/10/UoW-logo.png'
+st.logo(image_url, link="https://www.uow.edu.au/", size="large", icon_image=None)
 
 
 # Function to fetch and process data from API
@@ -130,18 +134,28 @@ def create_map(geojson_data, df, cycle_id, continent_id, collection_shortname):
     
     return map
 
-# Streamlit Interface
-st.title("Hydrocron Data Visualization")
+
 
 with st.expander("$ \\large \\textrm {\color{#F94C10} Inputs} $", expanded=True, icon=":material/instant_mix:"):
+    
+    st.markdown("")
+    downloadFields = '''Go to [SWORD - SWOT River Database](https://shorturl.at/JRoU9) to get :orange[**River Reach ID**]. Requires ArcGIS Pro or QGIS or similar to open those files.  
+    Following fields will be downloaded -  
+      
+    
+    reach_id, time_str, wse, width, geometry, river_name, cycle_id, pass_id, continent_id, collection_shortname'''
+    st.markdown(downloadFields)
+    st.markdown("")
+
+
     rcol1, rcol2 = st.columns([1, 5])
-    with rcol1: reach_id = st.text_input(":blue[**River Reach ID**]", "56861000151")
+    with rcol1: reach_id = st.text_input(":red[**River Reach ID**]", "56861000151")
 
     # Create columns for input fields
     col1, col2, col3 = st.columns([1, 0.02, 1])
     # User Inputs for Reach ID, Start Time, and End Time
-    with col1: start_time = st.text_input(":blue[**Start Time**]", "2022-07-01T00:00:00Z", help="YYYY-MM-DDTHH:MM:SSZ")
-    with col3: end_time = st.text_input(":blue[**End Time**]", "2024-12-05T00:00:00Z", help="YYYY-MM-DDTHH:MM:SSZ")
+    with col1: start_time = st.text_input(":red[**Start Time**]", "2022-07-01T00:00:00Z", help="YYYY-MM-DDTHH:MM:SSZ",)
+    with col3: end_time = st.text_input(":red[**End Time**]", "2024-12-05T00:00:00Z", help="YYYY-MM-DDTHH:MM:SSZ")
 
 # Button to trigger data fetching and displaying
 if st.button("Run"):
