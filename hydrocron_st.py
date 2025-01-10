@@ -176,7 +176,7 @@ if st.button("Run", icon=":material/settings:"):
         # Display Map with initial width
         map = create_map(geojson_data, df, cycle_id=cycle_id, continent_id=continent_id, collection_shortname=collection_shortname)
         
-        folium_static(map, width=screen_width)
+        folium_static(map, width=st.screen_width)
 
     else:
         st.warning("Please enter all fields (Reach ID, Start Time, and End Time) to fetch data.")
