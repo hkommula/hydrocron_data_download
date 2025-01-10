@@ -6,7 +6,7 @@ from streamlit_folium import folium_static
 import streamlit as st
 
 # Set Streamlit layout to wide mode
-st.set_page_config(layout="wide", page_title="Hydrocron Data Download")
+st.set_page_config(layout="wide", page_title="⛅ Hydrocron Data Download") 
 @st.cache_data #Utilise any cached data
 
 
