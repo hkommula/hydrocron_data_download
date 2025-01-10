@@ -142,8 +142,8 @@ with st.expander("$ \\large \\textrm {\color{#F94C10} Inputs} $", expanded=True,
     # Create columns for input fields
     col1, col2, col3 = st.columns([1, 0.05, 1])
     # User Inputs for Reach ID, Start Time, and End Time
-    with col1: start_time = st.text_input(":blue[**Start Time (YYYY-MM-DDTHH:MM:SSZ)**]", "2022-07-01T00:00:00Z", max_chars=25)
-    with col3: end_time = st.text_input(":blue[**End Time (YYYY-MM-DDTHH:MM:SSZ)**]", "2024-12-05T00:00:00Z", max_chars=25)
+    with col1: start_time = st.text_input(":blue[**Start Time (YYYY-MM-DDTHH:MM:SSZ)**]", "2022-07-01T00:00:00Z", max_chars=40)
+    with col3: end_time = st.text_input(":blue[**End Time (YYYY-MM-DDTHH:MM:SSZ)**]", "2024-12-05T00:00:00Z", max_chars=30)
 
 # Button to trigger data fetching and displaying
 if st.button("Run"):
