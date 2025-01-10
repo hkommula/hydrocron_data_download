@@ -7,8 +7,6 @@ import streamlit as st
 
 # Set Streamlit layout to wide mode
 st.set_page_config(layout="wide", page_title="⛅ Hydrocron Data Download") 
-@st.cache_data #Utilise any cached data
-
 
 
 # Function to fetch and process data from API
