@@ -139,8 +139,9 @@ def create_map(geojson_data, df, cycle_id, continent_id, collection_shortname):
 with st.expander("$ \\large \\textrm {\color{#F94C10} Inputs} $", expanded=True, icon=":material/instant_mix:"):
     
     st.markdown("")
-    downloadFields = '''Go to [SWORD - SWOT River Database](https://shorturl.at/JRoU9) to get :orange[**River Reach ID**]. Requires ArcGIS Pro or QGIS or similar to open those files.  
-    Following fields will be downloaded -  
+    downloadFields = '''$ \small Click \; on\;  the\; link \;get \; River \;Reach \;ID.  \;Requires \;ArcGIS \;Pro \;or \;QGIS \;or \;similar \;to \;open \;those \;files\; - $ 
+    [SWORD - SWOT River Database](https://shorturl.at/yZzbT)  
+    $ \small Following\; fields\; will\; be\; downloaded -$    
       
     
     reach_id, time_str, wse, width, geometry, river_name, cycle_id, pass_id, continent_id, collection_shortname'''
