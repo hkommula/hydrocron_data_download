@@ -6,16 +6,22 @@ from streamlit_folium import folium_static
 import streamlit as st
 from streamlit_js_eval import streamlit_js_eval
 
+
 # Set Streamlit layout to wide mode
 st.set_page_config(layout="wide", page_title="Hydrocron Data Download", page_icon=":material/cloud_download:") 
+
 
 # Streamlit Interface
 st.title("Hydrocron Data Viz and Download")
 image_url = 'https://cef.org.au/wp-content/uploads/2021/10/UoW-logo.png'
 st.logo(image_url, link="https://www.uow.edu.au/", size="large", icon_image=None)
 
-screen_width = int((streamlit_js_eval(js_expressions='screen.width', key='SCR')) * 0.85)
+screen_width_js = (streamlit_js_eval(js_expressions='screen.width', key='SCR'))
+screen_width = 0
 
+if screen_width_js is not None:
+    screen_width = round(screen_width_js * 0.9)
+    
 # Function to fetch and process data from API
 def fetch_data(reach_id, start_time, end_time, fields):
     base_url = "https://soto.podaac.earthdatacloud.nasa.gov/hydrocron/v1/timeseries"
@@ -94,22 +100,23 @@ def create_map(geojson_data, df, start_time, end_time):
 
     return map
 
-with st.expander("$ \\large \\textrm {\color{#F94C10} Help} $", expanded=False, icon=":material/info:"):
+with st.expander("$ \\large \\textrm {\\color{#F94C10} Help} $", expanded=False, icon=":material/info:"):
     st.markdown("""
     #### About the Tool
-    This tool sources data through Hydrocron API calls and enables users to download the results as a CSV file and visualize them on a map, making it easier to handle and analyze the data.
+    This tool sources data through [Hydrocron API calls](https://podaac.github.io/hydrocron/timeseries.html) and enables users to download the results as a CSV file and visualize them on a map, making it easier to handle and analyze the data.
     
     #### How to Use the Tool:
-    1. **Find Reach ID**: Identify the Reach ID for the river segment you're interested in. You can find Reach IDs [here](https://shorturl.at/yZzbT).   
+    1. **Find River Reach ID**: Identify the Reach ID for the river segment you're interested in. You can find Reach IDs [here](https://shorturl.at/yZzbT).   
     :gray[*Requires ArcGIS Pro or QGIS or similar to open those files.*]
     2. **Input Start and End Times**: Enter the start and end times for the period you want to retrieve data for, in the format `YYYY-MM-DDTHH:MM:SSZ`.
+    3. Currently, the tool supports only **one Reach ID at a time**. For any issues or suggestions for improvements, reach out to [Hrushi](mailto:hkommula@uow.edu.au).
 
     Once the data is fetched, the tool generates a **downloadable CSV table** and displays the data on an **interactive map** below.
     """)
 
 
 # Streamlit user input interface
-with st.expander("$ \\large \\textrm {\color{#F94C10} Inputs} $", expanded=True, icon=":material/instant_mix:"):
+with st.expander("$ \\large \\textrm {\\color{#F94C10} Inputs} $", expanded=True, icon=":material/instant_mix:"):
     # User Inputs for Reach ID, Start Time, and End Time
     reach_id = st.text_input(":violet[**River Reach ID**]", "56861000151")
     start_time = st.text_input(":violet[**Start Time**]", "2022-07-01T00:00:00Z", help="YYYY-MM-DDTHH:MM:SSZ")
@@ -174,4 +181,3 @@ if st.button("Run", icon=":material/play_circle:"):
     
     else:
         st.warning("Please enter all fields (Reach ID, Start Time, and End Time) to fetch data.")
-

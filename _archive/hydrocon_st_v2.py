@@ -14,7 +14,8 @@ st.title("Hydrocron Data Viz and Download")
 image_url = 'https://cef.org.au/wp-content/uploads/2021/10/UoW-logo.png'
 st.logo(image_url, link="https://www.uow.edu.au/", size="large", icon_image=None)
 
-screen_width = int((streamlit_js_eval(js_expressions='screen.width', key='SCR')) * 0.85)
+screen_width = int((streamlit_js_eval(js_expressions='screen.width', key='SCR')) * 0.9)
+print(screen_width)
 
 # Function to fetch and process data from API
 def fetch_data(reach_id, start_time, end_time, fields):
