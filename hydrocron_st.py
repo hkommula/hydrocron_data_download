@@ -175,6 +175,10 @@ if st.button("Run", icon=":material/play_circle:"):
         # Placeholder for dynamic map
         map_placeholder = st.empty()
 
+        st.text("")
+        st.markdown("""
+                    ### Map
+                    """)
         # Display Map with initial width
         map = create_map(geojson_data, df, start_time=start_time, end_time=end_time)
         folium_static(map, width=screen_width)
