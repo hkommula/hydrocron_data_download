@@ -145,7 +145,6 @@ with st.expander("$ \\large \\textrm {\color{#F94C10} Inputs} $", expanded=True,
     [SWORD - SWOT River Database](https://shorturl.at/yZzbT)   
     Following fields will be downloaded   
       
-    
     reach_id, time_str, wse, width, geometry, river_name, cycle_id, pass_id, continent_id, collection_shortname'''
     st.markdown(downloadFields)
     st.markdown("")
