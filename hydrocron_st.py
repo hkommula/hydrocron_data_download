@@ -115,7 +115,7 @@ with st.expander("$ \\large \\textrm {\color{#F94C10} Inputs} $", expanded=True,
     start_time = st.text_input(":violet[**Start Time**]", "2022-07-01T00:00:00Z", help="YYYY-MM-DDTHH:MM:SSZ")
     end_time = st.text_input(":violet[**End Time**]", "2024-12-05T00:00:00Z", help="YYYY-MM-DDTHH:MM:SSZ")
 
-    compulsory_fields = ['reach_id', 'river_name', 'continent_id']
+    compulsory_fields = ['reach_id', 'river_name', 'continent_id', 'wse', 'time_str']
     # All fields as selectable checkboxes
     fields = [
         'reach_id', 'time', 'time_tai', 'time_str', 'p_lat', 'p_lon', 'river_name',
