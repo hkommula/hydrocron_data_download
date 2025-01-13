@@ -9,7 +9,7 @@ from streamlit_js_eval import streamlit_js_eval
 
 # Set Streamlit layout to wide mode
 st.set_page_config(layout="wide", page_title="Hydrocron Data Download", page_icon=":material/cloud_download:") 
-
+st.cache_data.clear()
 
 # Streamlit Interface
 st.title("Hydrocron Data Viz and Download")
@@ -55,7 +55,6 @@ def create_map(geojson_data, df, start_time, end_time):
     # Initialize map centered at a given location
     map = folium.Map(zoom_start=4, tiles=None, control_scale=True)
 
-    
     folium.TileLayer(
         tiles='https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
         attr='© OpenStreetMap contributors & CARTO',
@@ -71,8 +70,6 @@ def create_map(geojson_data, df, start_time, end_time):
         subdomains=["mt0", "mt1", "mt2", "mt3"]
     ).add_to(map)
 
-    
-    
     # Assuming df is your DataFrame
     df_unique = df.drop_duplicates(subset=['river_name', 'continent_id', 'reach_id'])
     # Extract the top row
@@ -102,10 +99,10 @@ def create_map(geojson_data, df, start_time, end_time):
 
 with st.expander("$ \\large \\textrm {\\color{#F94C10} Help} $", expanded=False, icon=":material/info:"):
     st.markdown("""
-    #### About the Tool
+    #### :gray[About the Tool]
     This tool sources data through [Hydrocron API calls](https://podaac.github.io/hydrocron/timeseries.html) and enables users to download the results as a CSV file and visualize them on a map, making it easier to handle and analyze the data.
     
-    #### How to Use the Tool:
+    #### :gray[How to Use the Tool:]
     1. **Find River Reach ID**: Identify the Reach ID for the river segment you're interested in. You can find Reach IDs [here](https://shorturl.at/yZzbT).   
     :gray[*Requires ArcGIS Pro or QGIS or similar to open those files.*]
     2. **Input Start and End Times**: Enter the start and end times for the period you want to retrieve data for, in the format `YYYY-MM-DDTHH:MM:SSZ`.
