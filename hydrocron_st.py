@@ -2,9 +2,11 @@ import folium
 import requests
 import pandas as pd
 from folium import IFrame
+from folium import plugins
 from streamlit_folium import folium_static
 import streamlit as st
 from streamlit_js_eval import streamlit_js_eval
+from shapely.geometry import shape
 
 
 # Set Streamlit layout to wide mode
@@ -50,10 +52,41 @@ def fetch_data(reach_id, start_time, end_time, fields):
     df['ID'] = range(1, len(df) + 1)
     return geojson_data, df, start_time, end_time
 
+def get_geojson_bounds(geojson_data):
+    min_lon, min_lat, max_lon, max_lat = float('inf'), float('inf'), float('-inf'), float('-inf')
+    
+    # Check if the input is a FeatureCollection
+    if geojson_data.get('type') == 'FeatureCollection':
+        for feature in geojson_data['features']:
+            try:
+                geom = shape(feature['geometry'])  # Convert each feature's geometry to Shapely
+                bounds = geom.bounds  # Get bounds: (min_lon, min_lat, max_lon, max_lat)
+                min_lon = min(min_lon, bounds[0])
+                min_lat = min(min_lat, bounds[1])
+                max_lon = max(max_lon, bounds[2])
+                max_lat = max(max_lat, bounds[3])
+            except Exception as e:
+                print(f"Skipping invalid geometry in feature: {e}")
+    else:
+        # Handle single feature or geometry
+        try:
+            geom = shape(geojson_data)
+            min_lon, min_lat, max_lon, max_lat = geom.bounds
+        except Exception as e:
+            raise ValueError(f"Invalid GeoJSON geometry: {e}")
+    
+    if min_lon == float('inf') or max_lon == float('-inf'):
+        raise ValueError("No valid geometries found in GeoJSON data")
+    
+    return min_lon, min_lat, max_lon, max_lat
+
 # Function to create map with Folium
 def create_map(geojson_data, df, start_time, end_time):
+
+    limits = get_geojson_bounds(geojson_data)
     # Initialize map centered at a given location
-    map = folium.Map(zoom_start=4, tiles=None, control_scale=True)
+    map = folium.Map(zoom_start=4, tiles=None, control_scale=True, min_lat= limits[1], min_lon=limits[0], max_lat=limits[3], max_lon=limits[2], max_bounds=True)
+    
 
     folium.TileLayer(
         tiles='https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
@@ -90,11 +123,20 @@ def create_map(geojson_data, df, start_time, end_time):
     iframe = IFrame(html=formatted_output, width=400, height=215)
     popup = folium.Popup(iframe, max_width=400, min_width=250)
 
-    # Add GeoJSON to the map
-    folium.GeoJson(geojson_data, name="Reach Features", popup=popup).add_to(map)
-    folium.LayerControl().add_to(map)
-    map.fit_bounds(map.get_bounds(), padding=(30, 30))
 
+    folium.GeoJson(geojson_data, name="Reach Features", popup=popup, zoom_on_click=True,).add_to(map)
+
+    map.fit_bounds(map.get_bounds(), padding=(30, 30))
+ 
+    
+    folium.plugins.Fullscreen(
+        position="topright",
+        title="Fullscreen",
+        title_cancel="Exit Fullscreen",
+        force_separate_button=True,
+    ).add_to(map)
+
+    # plugins.MiniMap(toggle_display=True, zoom_level_fixed=4).add_to(map)
     return map
 
 with st.expander("$ \\large \\textrm {\\color{#F94C10} Help} $", expanded=False, icon=":material/info:"):
@@ -162,23 +204,23 @@ with st.expander("$ \\large \\textrm {\\color{#F94C10} Inputs} $", expanded=True
 
 # Button to trigger data fetching and displaying
 if st.button("Run", icon=":material/play_circle:"):
-    if reach_id and start_time and end_time and selected_fields:
-        # Fetch data using user inputs
-        geojson_data, df, start_time, end_time = fetch_data(reach_id, start_time, end_time, ','.join(selected_fields))
+    with st.spinner(" Fetching data", show_time=True, width="content"):
+        if reach_id and start_time and end_time and selected_fields:
+            # Fetch data using user inputs
+            geojson_data, df, start_time, end_time = fetch_data(reach_id, start_time, end_time, ','.join(selected_fields))
 
-        # Show Data Table in Streamlit
-        st.write("### Data Table", df)
+            # Show Data Table in Streamlit
+            st.write("### Data Table", df)
 
-        # Placeholder for dynamic map
-        map_placeholder = st.empty()
+            # Placeholder for dynamic map
+            map_placeholder = st.empty()
 
-        st.text("")
-        st.markdown("""
-                    ### Map
-                    """)
-        # Display Map with initial width
-        map = create_map(geojson_data, df, start_time=start_time, end_time=end_time)
-        folium_static(map, width=screen_width)
-    
-    else:
-        st.warning("Please enter all fields (Reach ID, Start Time, and End Time) to fetch data.")
+            st.text("")
+            st.markdown("""### Map """)
+            
+            # Display Map with initial width
+            map = create_map(geojson_data, df, start_time=start_time, end_time=end_time)
+            folium_static(map, width=screen_width)
+        
+        else:
+            st.warning("Please enter all fields (Reach ID, Start Time, and End Time) to fetch data.")
