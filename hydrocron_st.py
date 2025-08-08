@@ -15,8 +15,8 @@ st.cache_data.clear()
 
 # Streamlit Interface
 st.title("Hydrocron Data Viz and Download")
-image_url = 'https://cef.org.au/wp-content/uploads/2021/10/UoW-logo.png'
-st.logo(image_url, link="https://www.uow.edu.au/", size="large", icon_image=None)
+# image_url = 'https://cef.org.au/wp-content/uploads/2021/10/UoW-logo.png'
+# st.logo(image_url, link="https://www.uow.edu.au/", size="large", icon_image=None)
 
 screen_width_js = (streamlit_js_eval(js_expressions='screen.width', key='SCR'))
 screen_width = 0
