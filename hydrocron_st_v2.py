@@ -238,7 +238,7 @@ with st.expander("$ \\large \\textrm {\\color{#F94C10} Help} $", expanded=False,
 
     #### :gray[How to Use the Tool:]
     1. **Find River Reach IDs**: Identify the Reach ID(s) for the river segments you're interested in. You can include **one or many** (comma/space/newline separated).
-       You can find Reach IDs [here](https://shorturl.at/yZzbT).  
+       You can find Reach IDs [here](https://drive.google.com/file/d/17uH5RsyvVjM45JupjYTLNFIu2GMHvy3u/view?usp=sharing).  
        :gray[*Requires ArcGIS Pro or QGIS or similar to open those files.*]
     2. **Input Start and End Times**: Use `YYYY-MM-DDTHH:MM:SSZ`.
     3. The tool will fetch all selected reaches, compile a single table, and render all features together on the map.
