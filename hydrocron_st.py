@@ -248,7 +248,7 @@ with st.expander("$ \\large \\textrm {\\color{#F94C10} Inputs} $", expanded=True
     # Multiple Reach IDs (comma/space/newline separated)
     reach_ids_text = st.text_area(
         ":violet[**River Reach ID(s)**]",
-        "56861000151",
+        "56861000151,56861000181,56861000191",
         help="Enter one or more Reach IDs separated by commas, spaces, or newlines."
     )
 
