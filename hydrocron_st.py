@@ -7,6 +7,8 @@ from streamlit_folium import folium_static
 import streamlit as st
 from streamlit_js_eval import streamlit_js_eval
 from shapely.geometry import shape
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 
 # Set Streamlit layout to wide mode
@@ -23,6 +25,43 @@ screen_width = 0
 
 if screen_width_js is not None:
     screen_width = round(screen_width_js * 0.9)
+
+user_timezone = streamlit_js_eval(
+    js_expressions="Intl.DateTimeFormat().resolvedOptions().timeZone",
+    key="TIMEZONE",
+)
+
+if isinstance(user_timezone, str):
+    cleaned_timezone = user_timezone.strip()
+    if cleaned_timezone.lower() in {"", "undefined", "null"}:
+        user_timezone = None
+    else:
+        user_timezone = cleaned_timezone
+
+utc_now = datetime.now(timezone.utc)
+local_time_display = "Unavailable"
+timezone_display = "Unknown Timezone"
+
+if user_timezone:
+    timezone_display = user_timezone
+    try:
+        local_time = utc_now.astimezone(ZoneInfo(user_timezone))
+        local_time_display = local_time.strftime("%Y-%m-%d %H:%M:%S %Z")
+    except Exception:
+        local_time_display = "Unavailable"
+
+zulu_time_display = utc_now.strftime("%Y-%m-%d %H:%M:%S Z")
+
+with st.container():
+    col_local, col_zulu = st.columns(2)
+    col_local.markdown(
+        f":material/schedule: **Local Time ({timezone_display})**\n\n"
+        f"`{local_time_display}`"
+    )
+    col_zulu.markdown(
+        f":material/schedule_send: **Zulu Time (UTC)**\n\n"
+        f"`{zulu_time_display}`"
+    )
     
 # Function to fetch and process data from API
 def fetch_data(reach_id, start_time, end_time, fields):
