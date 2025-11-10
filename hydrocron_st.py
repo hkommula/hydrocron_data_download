@@ -7,6 +7,7 @@ from streamlit_folium import folium_static
 import streamlit as st
 from streamlit_js_eval import streamlit_js_eval
 from shapely.geometry import shape
+from zoneinfo import ZoneInfo
 
 
 # Set Streamlit layout to wide mode
@@ -23,6 +24,42 @@ screen_width = 0
 
 if screen_width_js is not None:
     screen_width = round(screen_width_js * 0.9)
+
+user_timezone = streamlit_js_eval(
+    js_expressions="Intl.DateTimeFormat().resolvedOptions().timeZone",
+    key="TIMEZONE",
+)
+
+if isinstance(user_timezone, str):
+    cleaned_timezone = user_timezone.strip()
+    if cleaned_timezone.lower() in {"", "undefined", "null"}:
+        user_timezone = None
+    else:
+        user_timezone = cleaned_timezone
+
+def convert_times_to_timezone(df, tz_name):
+    """Return a copy of *df* with datetime-like string columns converted to *tz_name*."""
+
+    if not tz_name:
+        return df.copy(), []
+
+    try:
+        zone_info = ZoneInfo(tz_name)
+    except Exception:
+        return df.copy(), []
+
+    df_converted = df.copy()
+    converted_columns = []
+
+    for column in df_converted.columns:
+        series = df_converted[column]
+        if series.dtype == object:
+            timestamps = pd.to_datetime(series, utc=True, errors="coerce")
+            if timestamps.notna().any():
+                df_converted[column] = timestamps.dt.tz_convert(zone_info).dt.strftime("%Y-%m-%d %H:%M:%S %Z")
+                converted_columns.append(column)
+
+    return df_converted, converted_columns
     
 # Function to fetch and process data from API
 def fetch_data(reach_id, start_time, end_time, fields):
@@ -209,8 +246,35 @@ if st.button("Run", icon=":material/play_circle:"):
             # Fetch data using user inputs
             geojson_data, df, start_time, end_time = fetch_data(reach_id, start_time, end_time, ','.join(selected_fields))
 
+            df_local, converted_columns = convert_times_to_timezone(df, user_timezone)
+            toggle_disabled = False
+            toggle_help = None
+
+            if not user_timezone:
+                toggle_disabled = True
+                toggle_help = "Unable to detect your local timezone; displaying UTC times."
+            elif not converted_columns:
+                toggle_disabled = True
+                toggle_help = "No datetime columns available to convert to local time."
+
+            show_local_time = st.toggle(
+                ":material/schedule: Display times in local timezone",
+                value=False,
+                disabled=toggle_disabled,
+            )
+
+            if show_local_time and converted_columns:
+                df_to_display = df_local
+                st.caption(
+                    f"Times converted to **{user_timezone}** for columns: {', '.join(converted_columns)}."
+                )
+            else:
+                df_to_display = df
+                if toggle_disabled and toggle_help:
+                    st.info(toggle_help)
+
             # Show Data Table in Streamlit
-            st.write("### Data Table", df)
+            st.write("### Data Table", df_to_display)
 
             # Placeholder for dynamic map
             map_placeholder = st.empty()
