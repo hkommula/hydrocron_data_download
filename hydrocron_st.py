@@ -7,24 +7,82 @@ from streamlit_folium import folium_static
 import streamlit as st
 from streamlit_js_eval import streamlit_js_eval
 from shapely.geometry import shape
+from streamlit_folium import st_folium
+import hashlib
+import colorsys
+import html
+import numpy as np
 
+# NEW: interactive plotting
+import plotly.graph_objects as go
 
-# Set Streamlit layout to wide mode
-st.set_page_config(layout="wide", page_title="Hydrocron Data Download", page_icon=":material/cloud_download:") 
+try:
+    # optional: enables click-to-details
+    from streamlit_plotly_events import plotly_events
+    PLOTLY_EVENTS_AVAILABLE = True
+except Exception:
+    PLOTLY_EVENTS_AVAILABLE = False
+
+# ----------------------------
+# App setup
+# ----------------------------
+st.set_page_config(layout="wide", page_title="Hydrocron Data Download", page_icon=":material/cloud_download:")
 st.cache_data.clear()
 
-# Streamlit Interface
 st.title("Hydrocron Data Viz and Download")
 image_url = 'https://cef.org.au/wp-content/uploads/2021/10/UoW-logo.png'
 st.logo(image_url, link="https://www.uow.edu.au/", size="large", icon_image=None)
 
 screen_width_js = (streamlit_js_eval(js_expressions='screen.width', key='SCR'))
 screen_width = 0
-
 if screen_width_js is not None:
     screen_width = round(screen_width_js * 0.9)
-    
-# Function to fetch and process data from API
+
+# ----------------------------
+# Helpers
+# ----------------------------
+def reach_color_palette():
+    """
+    A clean, professional, user-friendly palette based on Tableau 20 + Set2.
+    Supports ~20 distinct reaches. Deterministic via hashing.
+    """
+    return [
+        "#4E79A7", "#F28E2B", "#E15759", "#76B7B2", "#59A14F",
+        "#EDC948", "#B07AA1", "#FF9DA7", "#9C755F", "#BAB0AC",
+        "#1F77B4", "#FF7F0E", "#2CA02C", "#D62728", "#9467BD",
+        "#8C564B", "#E377C2", "#7F7F7F", "#BCBD22", "#17BECF"
+    ]
+
+def nice_color_for_reach(reach_id: str) -> str:
+    """
+    Deterministic professional color assignment for each reach ID.
+    """
+    palette = reach_color_palette()
+    h = int(hashlib.md5(str(reach_id).encode()).hexdigest(), 16)
+    return palette[h % len(palette)]
+
+
+def esc(x):
+    return html.escape(str(x)) if x is not None else "—"
+
+def parse_reach_ids(text: str) -> list[str]:
+    """Parse comma/space/newline separated reach ids into a unique, ordered list."""
+    if not text:
+        return []
+    tokens = []
+    for chunk in text.replace(",", " ").split():
+        t = chunk.strip()
+        if t:
+            tokens.append(t)
+    # preserve order while ensuring uniqueness
+    seen = set()
+    uniq = []
+    for t in tokens:
+        if t not in seen:
+            uniq.append(t)
+            seen.add(t)
+    return uniq
+
 def fetch_data(reach_id, start_time, end_time, fields):
     base_url = "https://soto.podaac.earthdatacloud.nasa.gov/hydrocron/v1/timeseries"
     params = {
@@ -35,32 +93,53 @@ def fetch_data(reach_id, start_time, end_time, fields):
         "output": "geojson",
         "fields": fields
     }
-
-    # Send the GET request
     hydrocron_response = requests.get(base_url, params=params).json()
-
-    # Extract geojson data and process
+    # Extract geojson and table
     geojson_data = hydrocron_response['results']['geojson']
     data_list = []
     for feature in geojson_data['features']:
         properties = feature['properties']
-        data_list.append([properties[field] for field in fields.split(',')])
-
-    # Create DataFrame
+        data_list.append([properties.get(field, None) for field in fields.split(',')])
     df = pd.DataFrame(data_list, columns=fields.split(','))
-    df = df[df['time_str'] != 'no_data']
+    if 'time_str' in df.columns:
+        df = df[df['time_str'] != 'no_data']
     df['ID'] = range(1, len(df) + 1)
     return geojson_data, df, start_time, end_time
 
+def fetch_data_multi(reach_ids: list[str], start_time, end_time, fields):
+    """Fetch and combine multiple reach ids. Returns (FeatureCollection, combined_df, errors)."""
+    all_features = []
+    df_list = []
+    errors = []
+
+    for rid in reach_ids:
+        try:
+            gjson, df, _, _ = fetch_data(rid, start_time, end_time, fields)
+            feats = gjson.get('features', [])
+            if feats:
+                all_features.extend(feats)
+            if not df.empty:
+                df_list.append(df)
+        except Exception as e:
+            errors.append(f"{rid}: {e}")
+
+    combined_geojson = {"type": "FeatureCollection", "features": all_features}
+
+    if df_list:
+        combined_df = pd.concat(df_list, ignore_index=True)
+        combined_df['ID'] = range(1, len(combined_df) + 1)
+    else:
+        combined_df = pd.DataFrame(columns=fields.split(',') + ['ID'])
+
+    return combined_geojson, combined_df, errors
+
 def get_geojson_bounds(geojson_data):
     min_lon, min_lat, max_lon, max_lat = float('inf'), float('inf'), float('-inf'), float('-inf')
-    
-    # Check if the input is a FeatureCollection
     if geojson_data.get('type') == 'FeatureCollection':
-        for feature in geojson_data['features']:
+        for feature in geojson_data.get('features', []):
             try:
-                geom = shape(feature['geometry'])  # Convert each feature's geometry to Shapely
-                bounds = geom.bounds  # Get bounds: (min_lon, min_lat, max_lon, max_lat)
+                geom = shape(feature['geometry'])
+                bounds = geom.bounds
                 min_lon = min(min_lon, bounds[0])
                 min_lat = min(min_lat, bounds[1])
                 max_lon = max(max_lon, bounds[2])
@@ -68,101 +147,115 @@ def get_geojson_bounds(geojson_data):
             except Exception as e:
                 print(f"Skipping invalid geometry in feature: {e}")
     else:
-        # Handle single feature or geometry
         try:
             geom = shape(geojson_data)
             min_lon, min_lat, max_lon, max_lat = geom.bounds
         except Exception as e:
             raise ValueError(f"Invalid GeoJSON geometry: {e}")
-    
+
     if min_lon == float('inf') or max_lon == float('-inf'):
         raise ValueError("No valid geometries found in GeoJSON data")
-    
     return min_lon, min_lat, max_lon, max_lat
 
-# Function to create map with Folium
 def create_map(geojson_data, df, start_time, end_time):
-
     limits = get_geojson_bounds(geojson_data)
-    # Initialize map centered at a given location
-    map = folium.Map(zoom_start=4, tiles=None, control_scale=True, min_lat= limits[1], min_lon=limits[0], max_lat=limits[3], max_lon=limits[2], max_bounds=True)
-    
+    m = folium.Map(
+        zoom_start=4,
+        tiles=None,
+        control_scale=True,
+        min_lat=limits[1], min_lon=limits[0],
+        max_lat=limits[3], max_lon=limits[2],
+        max_bounds=True
+    )
 
-    folium.TileLayer(
-        tiles='https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-        attr='© OpenStreetMap contributors & CARTO',
-        name="Light Map",
-        subdomains='abcd'
-    ).add_to(map)
-    
-    # Add basemaps to the map
+    # folium.TileLayer(
+    #     tiles='https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    #     attr='© OpenStreetMap contributors & CARTO',
+    #     name="Light Map",
+    #     subdomains='abcd',
+    #     opacity=0.9
+    # ).add_to(m)
+
     folium.TileLayer(
         tiles="https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
         attr="© Google",
         name="Satellite Hybrid Imagery",
-        subdomains=["mt0", "mt1", "mt2", "mt3"]
-    ).add_to(map)
+        subdomains=["mt0", "mt1", "mt2", "mt3"],
+        opacity=0.5
+    ).add_to(m)
 
-    # Assuming df is your DataFrame
-    df_unique = df.drop_duplicates(subset=['river_name', 'continent_id', 'reach_id'])
-    # Extract the top row
-    top_row = df_unique.iloc[0]
-    # Initialize an empty string to hold the formatted output
-    
-    formatted_output = f"""
-    <div style="font-family: Arial, sans-serif; color: #333; padding: 6px; font-size: 14px;">
-        <h3 style="color: #5a2d9c; font-size: 16px;">River Information</h3>
-        <p style="margin-bottom: 1px; padding-bottom: 0px;"><strong>River Name:</strong> {top_row['river_name']} - {top_row['reach_id']}</p>
-        <p style="margin-bottom: 1px; padding-bottom: 0px;"><strong>Reach ID:</strong> {top_row['reach_id']}</p>
-        <p style="margin-bottom: 1px; padding-bottom: 0px;"><strong>Continent ID:</strong> {top_row['continent_id']}</p>
-        <p style="margin-bottom: 1px; padding-bottom: 0px;"><strong>Start Time:</strong> {start_time}</p>
-        <p style="margin-bottom: 1px; padding-bottom: 0px;"><strong>End Time:</strong> {end_time}</p>
-    </div>
-    """
+    # Neon color per reach for consistency with the time series
+    def style_fn(feature):
+        rid = str(feature.get('properties', {}).get('reach_id', 'na'))
+        c = nice_color_for_reach(rid)
+        return {"color": c, "weight": 4, "opacity": 0.95, "fill": False}
 
-    iframe = IFrame(html=formatted_output, width=400, height=215)
-    popup = folium.Popup(iframe, max_width=400, min_width=250)
+    def highlight_fn(feature):
+        return {"weight": 6, "opacity": 1.0}
 
+    gj = folium.GeoJson(
+        geojson_data,
+        name="Reach Features",
+        style_function=style_fn,
+        highlight_function=highlight_fn,
+        tooltip=folium.GeoJsonTooltip(
+            fields=["reach_id", "river_name"],
+            aliases=["Reach ID", "River"],
+            labels=True,
+            sticky=True
+        ),
+        popup=folium.GeoJsonPopup(
+            fields=["reach_id", "river_name", "continent_id", "time_str", "wse"],
+            aliases=["Reach ID", "River", "Continent", "Time", "WSE"],
+            localize=True,
+            labels=True,
+            max_width=420,
+            parse_html=False,
+            sticky=False,
+            show=False
+        )
+    )
+    gj.add_to(m)
 
-    folium.GeoJson(geojson_data, name="Reach Features", popup=popup, zoom_on_click=True,).add_to(map)
+    m.fit_bounds(m.get_bounds(), padding=(50, 50))
 
-    map.fit_bounds(map.get_bounds(), padding=(30, 30))
- 
-    
     folium.plugins.Fullscreen(
         position="topright",
         title="Fullscreen",
         title_cancel="Exit Fullscreen",
         force_separate_button=True,
-    ).add_to(map)
+    ).add_to(m)
 
-    # plugins.MiniMap(toggle_display=True, zoom_level_fixed=4).add_to(map)
-    return map
+    return m
 
+# ----------------------------
+# UI: Help / Inputs
+# ----------------------------
 with st.expander("$ \\large \\textrm {\\color{#F94C10} Help} $", expanded=False, icon=":material/info:"):
     st.markdown("""
     #### :gray[About the Tool]
-    This tool sources data through [Hydrocron API calls](https://podaac.github.io/hydrocron/timeseries.html) and enables users to download the results as a CSV file and visualize them on a map, making it easier to handle and analyze the data.
-    
-    #### :gray[How to Use the Tool:]
-    1. **Find River Reach ID**: Identify the Reach ID for the river segment you're interested in. You can find Reach IDs [here](https://shorturl.at/yZzbT).   
-    :gray[*Requires ArcGIS Pro or QGIS or similar to open those files.*]
-    2. **Input Start and End Times**: Enter the start and end times for the period you want to retrieve data for, in the format `YYYY-MM-DDTHH:MM:SSZ`.
-    3. Currently, the tool supports only **one Reach ID at a time**. For any issues or suggestions for improvements, reach out to [Hrushi](mailto:hkommula@uow.edu.au).
+    This tool sources data through [Hydrocron API calls](https://podaac.github.io/hydrocron/timeseries.html) and enables users to download the results as a CSV file and visualize them on a map.
 
-    Once the data is fetched, the tool generates a **downloadable CSV table** and displays the data on an **interactive map** below.
+    #### :gray[How to Use the Tool:]
+    1. **Find River Reach IDs**: Identify the Reach ID(s) for the river segments you're interested in. You can include **one or many** (comma/space/newline separated).
+       You can find Reach IDs [here](https://drive.google.com/file/d/17uH5RsyvVjM45JupjYTLNFIu2GMHvy3u/view?usp=sharing).  
+       :gray[*Requires ArcGIS Pro or QGIS or similar to open those files.*]
+    2. **Input Start and End Times**: Use `YYYY-MM-DDTHH:MM:SSZ`.
+    3. The tool will fetch all selected reaches, compile a single table, and render all features together on the map.
     """)
 
-
-# Streamlit user input interface
 with st.expander("$ \\large \\textrm {\\color{#F94C10} Inputs} $", expanded=True, icon=":material/instant_mix:"):
-    # User Inputs for Reach ID, Start Time, and End Time
-    reach_id = st.text_input(":violet[**River Reach ID**]", "56861000151")
+    # Multiple Reach IDs (comma/space/newline separated)
+    reach_ids_text = st.text_area(
+        ":violet[**River Reach ID(s)**]",
+        "56861000151",
+        help="Enter one or more Reach IDs separated by commas, spaces, or newlines."
+    )
+
     start_time = st.text_input(":violet[**Start Time**]", "2022-07-01T00:00:00Z", help="YYYY-MM-DDTHH:MM:SSZ")
     end_time = st.text_input(":violet[**End Time**]", "2024-12-05T00:00:00Z", help="YYYY-MM-DDTHH:MM:SSZ")
 
     compulsory_fields = ['reach_id', 'river_name', 'continent_id', 'wse', 'time_str']
-    # All fields as selectable checkboxes
     fields = [
         'reach_id', 'time', 'time_tai', 'time_str', 'p_lat', 'p_lon', 'river_name',
         'wse', 'wse_u', 'wse_r_u', 'wse_c', 'wse_c_u', 'slope', 'slope_u', 'slope_r_u',
@@ -189,38 +282,167 @@ with st.expander("$ \\large \\textrm {\\color{#F94C10} Inputs} $", expanded=True
         'ingest_time'
     ]
 
-    selected_fields = st.multiselect(":violet[**Select Fields to download**]", fields, default=['reach_id', 'time_str', 'wse', 'width', 'river_name', 'continent_id'])
+    selected_fields = st.multiselect(
+        ":violet[**Select Fields to download**]",
+        fields,
+        default=['reach_id', 'time_str', 'wse', 'width', 'river_name', 'continent_id']
+    )
 
-    # Check if compulsory fields are selected
     if not all(field in selected_fields for field in compulsory_fields):
         st.warning(f"Please select all compulsory fields: {compulsory_fields}")
-
-        # After the check, proceed with the process
     if all(field in selected_fields for field in compulsory_fields):
         st.success("All compulsory fields selected. Choose other optional fields and :blue[proceed with the download...]")
     else:
-        st.stop()  # Stops further execution until the condition is met
+        st.stop()
 
-
-# Button to trigger data fetching and displaying
+# ----------------------------
+# Run
+# ----------------------------
 if st.button("Run", icon=":material/play_circle:"):
-    with st.spinner(" Fetching data", show_time=True, width="content"):
-        if reach_id and start_time and end_time and selected_fields:
-            # Fetch data using user inputs
-            geojson_data, df, start_time, end_time = fetch_data(reach_id, start_time, end_time, ','.join(selected_fields))
+    reach_ids = parse_reach_ids(reach_ids_text)
+    if not reach_ids:
+        st.warning("Please provide at least one Reach ID.")
+    elif start_time and end_time and selected_fields:
+        with st.spinner(" Fetching data"):
+            combined_geojson, combined_df, errors = fetch_data_multi(
+                reach_ids, start_time, end_time, ','.join(selected_fields)
+            )
 
-            # Show Data Table in Streamlit
-            st.write("### Data Table", df)
+            if errors:
+                with st.expander(":material/error: Some requests failed (click to expand)"):
+                    for e in errors:
+                        st.write(f"- {e}")
 
-            # Placeholder for dynamic map
-            map_placeholder = st.empty()
+            # Show Data Table
+            st.write("### Data Table", combined_df)
 
+            # Map
             st.text("")
-            st.markdown("""### Map """)
-            
-            # Display Map with initial width
-            map = create_map(geojson_data, df, start_time=start_time, end_time=end_time)
-            folium_static(map, width=screen_width)
-        
-        else:
-            st.warning("Please enter all fields (Reach ID, Start Time, and End Time) to fetch data.")
+            st.markdown("""### Map""")
+            if combined_geojson.get('features'):
+                m = create_map(combined_geojson, combined_df, start_time=start_time, end_time=end_time)
+                folium_static(m, width=screen_width)
+            else:
+                st.info("No valid geometries returned for the provided Reach ID(s).")
+
+            # ----------------------------------------------------------
+            # Time Series (WSE vs Date) — ALL reaches on ONE interactive plot
+            # ----------------------------------------------------------
+            st.text("")
+            st.markdown("### Time Series")
+
+            required_cols = {'reach_id', 'time_str', 'wse', 'river_name'}
+            if required_cols.issubset(set(combined_df.columns)) and not combined_df.empty:
+                # Clean & prepare
+                ts = combined_df[['reach_id', 'river_name', 'time_str', 'wse']].copy()
+                ts['reach_id'] = ts['reach_id'].astype(str)
+
+                # numeric WSE, drop sentinel + non-finite
+                ts['wse'] = pd.to_numeric(ts['wse'], errors='coerce').replace(-999999999999.0, np.nan)
+                ts = ts.replace([np.inf, -np.inf], np.nan).dropna(subset=['wse'])
+
+                # tz-aware UTC timestamps
+                ts['time'] = pd.to_datetime(ts['time_str'], errors='coerce', utc=True)
+                ts = ts.dropna(subset=['time']).sort_values(['reach_id', 'time'])
+
+                if ts.empty:
+                    st.info("No valid WSE time series points to plot after cleaning.")
+                else:
+                    # Build a Plotly figure with dark background + neon lines
+                    fig = go.Figure()
+                    for rid, sub in ts.groupby('reach_id', sort=False):
+                        color = nice_color_for_reach(rid)
+
+                        # Convert time → POSIX milliseconds (tz-aware safe)
+                        # Convert tz-aware datetime → tz-naive → POSIX milliseconds (int)
+                        epoch_ms = (
+                            sub['time']
+                            .dt.tz_convert('UTC')         # ensure consistent timezone
+                            .dt.tz_localize(None)         # remove timezone safely (not using astype)
+                            .astype('int64') // 1_000_000 # convert ns → ms
+                        )
+                        epoch_ms = epoch_ms.to_numpy(dtype='int64')  # ensure clean 1D array
+
+
+                        customdata = np.stack([
+                            sub['reach_id'].astype(str).values,
+                            sub['river_name'].astype(str).values,
+                            epoch_ms,
+                            sub['wse'].values
+                        ], axis=-1)
+
+                        fig.add_trace(go.Scatter(
+                            x=sub['time'],
+                            y=sub['wse'],
+                            mode='lines+markers',
+                            name=f"{rid}",
+                            line=dict(width=2, color=color),
+                            marker=dict(size=6, line=dict(width=0), color=color),
+                            hovertemplate="<b>Reach:</b> %{customdata[0]}<br>"
+                                        "<b>River:</b> %{customdata[1]}<br>"
+                                        "<b>Time (UTC):</b> %{x|%Y-%m-%d %H:%M:%S}<br>"
+                                        "<b>WSE (m):</b> %{y:.3f}<extra></extra>",
+                            customdata=customdata
+                        ))
+
+
+                    fig.update_layout(
+                        template="plotly_dark",
+                        height=420,
+                        margin=dict(l=40, r=20, t=50, b=40),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+                        xaxis=dict(title="Date (UTC)", showgrid=True, gridwidth=0.3),
+                        yaxis=dict(title="Water Surface Elevation (m)", showgrid=True, gridwidth=0.3),
+                        # paper_bgcolor="#11151a",
+                        # plot_bgcolor="#11151a",
+                    )
+
+                    # Render with optional click capture
+                    if PLOTLY_EVENTS_AVAILABLE:
+                        st.caption("Tip: Click a point to see details below.")
+                        selected_points = plotly_events(
+                            fig,
+                            click_event=True,
+                            hover_event=False,
+                            select_event=False,
+                            override_height=420,
+                            override_width=screen_width if screen_width else None,
+                            key="wse_clicks"
+                        )
+                    else:
+                        st.caption("Hover to inspect values.")
+                        # Fallback: no click capture, just show chart
+                        selected_points = None
+                        st.plotly_chart(fig, use_container_width=True)
+
+                    # If we captured a click, show details for that datapoint
+                    if selected_points:
+                        pt = selected_points[0]
+                        # pt contains point data with customdata indices
+                        cd = pt.get("customdata", [])
+                        if cd and len(cd) >= 4:
+                            rid, river, epoch_ms, wse_val = cd
+                            # epoch_ms is numpy int; convert to pandas/py datetime
+                            t_utc = pd.to_datetime(int(epoch_ms), unit="ms", utc=True)
+                            st.success(
+                                f"**Selected Point**  \n"
+                                f"- Reach ID: `{rid}`  \n"
+                                f"- River: `{river}`  \n"
+                                f"- Time (UTC): `{t_utc.strftime('%Y-%m-%d %H:%M:%S')}`  \n"
+                                f"- WSE (m): `{wse_val:.3f}`"
+                            )
+
+                    # Optional: download cleaned time series
+                    csv_bytes = ts[['reach_id', 'river_name', 'time', 'wse']].rename(columns={'time': 'time_utc'}).to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        "Download cleaned WSE time series (CSV)",
+                        data=csv_bytes,
+                        file_name="wse_timeseries_clean_neon.csv",
+                        mime="text/csv",
+                        icon=":material/download:"
+                    )
+            else:
+                st.info("Time series plotting requires 'reach_id', 'river_name', 'time_str', and 'wse' in the selected fields.")
+
+    else:
+        st.warning("Please enter all fields (Reach ID(s), Start Time, and End Time) to fetch data.")
